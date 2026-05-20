@@ -1,0 +1,117 @@
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: eidoc
+    depends_on:
+      - php
+      - callme
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./www:/var/www/html:cached
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/letsencrypt:/etc/letsencrypt
+      - ./docker/nginx/www:/var/www/certbot
+    networks:
+      - eidoc_net
+    restart: unless-stopped
+
+  php:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: eidoc_php
+    working_dir: /var/www/html
+    volumes:
+      - ./www:/var/www/html:cached
+    environment:
+      TZ: Europe/Madrid
+      # composer в контейнере часто идёт от root при первом старте
+      COMPOSER_ALLOW_SUPERUSER: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - eidoc_net
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: eidoc_postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eidoc -d eidoc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: eidoc
+      POSTGRES_USER: eidoc
+      POSTGRES_PASSWORD: eidoc_pass
+    volumes:
+      - eidoc_pgdata:/var/lib/postgresql/data
+    networks:
+      - eidoc_net
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: eidoc_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - eidoc_redis:/data
+    networks:
+      - eidoc_net
+    restart: unless-stopped
+
+  adminer:
+    image: adminer:4
+    container_name: eidoc_adminer
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    networks:
+      - eidoc_net
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    container_name: eidoc_certbot
+    volumes:
+      - ./docker/nginx/letsencrypt:/etc/letsencrypt
+      - ./docker/nginx/www:/var/www/certbot
+
+  callme:
+    image: mirotalk/cme:latest
+    container_name: callme
+    hostname: call.eidoc.devitlab.ru
+    restart: unless-stopped
+    environment:
+      PORT: "8000"
+    env_file:
+      - ./www/call-me/.env
+    volumes:
+      - ./www/call-me/.env:/src/.env:ro
+      - ./www/call-me/app:/src/app:ro
+      - ./www/call-me/public:/src/public:ro
+    expose:
+      - "8000"
+    networks:
+      - eidoc_net
+
+networks:
+  eidoc_net:
+    driver: bridge
+
+volumes:
+  eidoc_pgdata:
+  eidoc_redis:
