@@ -29,10 +29,14 @@ services:
       TZ: Europe/Madrid
       # composer в контейнере часто идёт от root при первом старте
       COMPOSER_ALLOW_SUPERUSER: "1"
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_started
+      ollama:
         condition: service_started
     networks:
       - eidoc_net
@@ -90,6 +94,40 @@ services:
       - ./docker/nginx/letsencrypt:/etc/letsencrypt
       - ./docker/nginx/www:/var/www/certbot
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: eidoc_ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - eidoc_ollama:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: "10m"
+    networks:
+      - eidoc_net
+    restart: unless-stopped
+
+  # Агент проекта: одноразовый запуск, например:
+  #   docker compose run --rm agent "Какие сервисы в docker-compose.yml?"
+  agent:
+    image: php:8.2-cli-bookworm
+    container_name: eidoc_agent
+    working_dir: /app
+    entrypoint: ["php", "/app/ai/bin/agent.php"]
+    volumes:
+      - ./:/app:ro
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
+      OLLAMA_TIMEOUT: "300"
+      AGENT_PROJECT_ROOT: /app
+    depends_on:
+      ollama:
+        condition: service_started
+    networks:
+      - eidoc_net
+    profiles: ["agent"]
+
   callme:
     image: mirotalk/cme:latest
     container_name: callme
@@ -115,3 +153,4 @@ networks:
 volumes:
   eidoc_pgdata:
   eidoc_redis:
+  eidoc_ollama:
