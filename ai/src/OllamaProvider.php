@@ -21,7 +21,7 @@ final class OllamaProvider implements LlmProvider
     public static function fromEnv(): self
     {
         $baseUrl = getenv('OLLAMA_BASE_URL') ?: 'http://ollama:11434';
-        $model = getenv('OLLAMA_MODEL') ?: 'qwen2.5:1.5b';
+        $model = getenv('OLLAMA_MODEL') ?: 'qwen2.5:3b';
         $timeout = (int) (getenv('OLLAMA_TIMEOUT') ?: 300);
 
         return new self(rtrim($baseUrl, '/'), $model, 0.2, $timeout);

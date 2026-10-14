@@ -23,10 +23,10 @@ ai/
 
    ```bash
    docker compose up -d ollama
-   docker exec -it eidoc_ollama ollama pull qwen2.5:1.5b
+   docker exec -it eidoc_ollama ollama pull qwen2.5:3b
    ```
 
-   Для агентов нужна модель с поддержкой tool calling, например `qwen2.5`, `llama3.1`, `mistral-nemo`.
+   Для агентов нужна модель с поддержкой tool calling, например `qwen2.5:3b` (проверено), `qwen2.5:7b`, `llama3.1`. Модели 1.5B плохо вызывают инструменты и обычно отвечают текстом.
    Другую модель можно выбрать через `OLLAMA_MODEL=<имя>` в окружении или `.env` рядом с `docker-compose.yml`.
 
 2. Запустить агента:
@@ -34,6 +34,8 @@ ai/
    ```bash
    docker compose run --rm agent "Какие сервисы описаны в docker-compose.yml?"
    ```
+
+   В скриптах и CI добавляйте `-T` (без TTY), иначе вывод агента может не попасть в stdout.
 
    Без Docker, если Ollama доступна на хосте:
 
